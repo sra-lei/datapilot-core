@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trae-core
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=trae
+      - DB_PASSWORD=trae_password
+      - DB_NAME=trae
+      - ENABLE_SWAGGER=false
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/data/logs
+    networks:
+      - trae-network
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    container_name: trae-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=trae
+      - MYSQL_USER=trae
+      - MYSQL_PASSWORD=trae_password
+      - MYSQL_INIT_CONNECT='SET NAMES utf8mb4;'
+      - LC_ALL=C.UTF-8
+      - LANG=C.UTF-8
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - trae-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+volumes:
+  mysql_data:
+
+networks:
+  trae-network:
+    driver: bridge

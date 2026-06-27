@@ -1,0 +1,34 @@
+# 依赖
+node_modules/
+
+# 日志
+logs/
+*.log
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 编译产物
+dist/
+*.tsbuildinfo
+
+# IDE配置
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 测试覆盖率
+coverage/
+
+# SQLite数据库文件
+*.db
+*.db-shm
+*.db-wal
