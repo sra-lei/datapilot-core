@@ -1,11 +1,9 @@
-version: "3.8"
-
 services:
   core:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: trae-core
+    container_name: datapolit-core
     ports:
       - "${PORT}:${PORT}"
     env_file:
@@ -17,12 +15,12 @@ services:
       - ./data:/app/data
       - ./logs:/app/data/logs
     networks:
-      - trae-network
+      - datapolit-network
     restart: unless-stopped
 
   mysql:
     image: mysql:8.0
-    container_name: trae-mysql
+    container_name: datapolit-mysql
     ports:
       - "${DB_PORT}:${DB_PORT}"
     env_file:
@@ -31,7 +29,7 @@ services:
       - mysql_data:/var/lib/mysql
       - ./database/init:/docker-entrypoint-initdb.d
     networks:
-      - trae-network
+      - datapolit-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -42,5 +40,5 @@ volumes:
   mysql_data:
 
 networks:
-  trae-network:
+  datapolit-network:
     driver: bridge
