@@ -1,0 +1,42 @@
+services:
+  core:
+    image: ${IMAGE_NAME}:latest
+    container_name: datapolit-core
+    ports:
+      - "${PORT}:${PORT}"
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/data/logs
+    networks:
+      - datapolit-network
+    restart: unless-stopped
+    
+  mysql:
+    image: mysql:8.0
+    container_name: datapolit-mysql
+    ports:
+      - "${DB_PORT}:${DB_PORT}"
+    env_file:
+      - .env
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - datapolit-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+volumes:
+  mysql_data:
+
+networks:
+  datapolit-network:
+    driver: bridge

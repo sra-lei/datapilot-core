@@ -3,6 +3,11 @@
 -- 支持 MySQL 8.0+
 -- ============================================
 
+-- 授予应用用户远程访问权限
+CREATE USER IF NOT EXISTS 'datapolit-core'@'%' IDENTIFIED BY 'core_password';
+GRANT ALL PRIVILEGES ON datapolit.* TO 'datapolit-core'@'%';
+FLUSH PRIVILEGES;
+
 -- 创建 users 表（其他表的依赖）
 CREATE TABLE IF NOT EXISTS users (
     id INT PRIMARY KEY AUTO_INCREMENT,
