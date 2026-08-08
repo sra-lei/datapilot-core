@@ -15,5 +15,4 @@ $:
         - name: 推送到腾讯云 CCR
           script: |
             docker login --username ${TENCENTCLOUD_DOCKER_USERNAME} --password "${TENCENTCLOUD_DOCKER_PASSWORD}" ccr.ccs.tencentyun.com
-            docker push ccr.ccs.tencentyun.com/sra.io/datapolit-core:${tag_name}
-            docker push ccr.ccs.tencentyun.com/sra.io/datapolit-core:latest
+            docker push docker.cnb.cool/sra_lei/datapolit-core:latest
