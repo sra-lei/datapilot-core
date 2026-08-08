@@ -1,18 +1,18 @@
-# =============================================
-# 部署流水线（由 tag_deploy.yml 中的按钮触发）
-# =============================================
-$:
-  tag_deploy.production:
-    - imports:
-        - https://cnb.cool/sra_lei/datacolit-secret/-/blob/main/tencent-cloud.yml
-      services:
+main:
+  push:
+    - services:
         - docker
       stages:
         - name: 构建镜像
           script: |
-            docker build -f Dockerfile.prod -t ccr.ccs.tencentyun.com/sra.io/datapolit-core:${tag_name} .
-            docker tag ccr.ccs.tencentyun.com/sra.io/datapolit-core:${tag_name} ccr.ccs.tencentyun.com/sra.io/datapolit-core:latest
-        - name: 推送到腾讯云 CCR
+            docker build -f Dockerfile.prod -t ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest .
+        - name: 推送镜像
+          script: docker push ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest
+        - name: 部署到轻量服务器
           script: |
-            docker login --username ${TENCENTCLOUD_DOCKER_USERNAME} --password "${TENCENTCLOUD_DOCKER_PASSWORD}" ccr.ccs.tencentyun.com
-            docker push docker.cnb.cool/sra_lei/datapolit-core:latest
+            mkdir -p ~/.ssh && echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
+            ssh -o StrictHostKeyChecking=no root@${SERVER_IP} "
+              docker pull ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest
+              cd ${DEPLOY_PATH}
+              docker compose up -d
+            "
