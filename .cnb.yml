@@ -14,7 +14,7 @@ main:
           script: |
             mkdir -p ~/.ssh && echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
             ssh -o StrictHostKeyChecking=no ubuntu@${SERVER_IP} "
-              docker pull ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest
               cd ${DEPLOY_PATH}
-              docker compose up -d
+              docker compose -f docker-compose.server.yml pull core
+              docker compose -f docker-compose.server.yml up -d core
             "
