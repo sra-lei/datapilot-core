@@ -2,7 +2,6 @@ node_modules/
 dist/
 data/
 .env
-.env.development
 .git/
 .gitignore
 *.log
