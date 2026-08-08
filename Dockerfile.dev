@@ -1,0 +1,23 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache tzdata \
+    && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone
+
+COPY package*.json ./
+
+# 安装全量依赖（含 ts-node、eslint 等开发依赖）
+RUN npm ci
+
+COPY .env.development ./.env
+COPY tsconfig.json ./
+COPY src/ ./src/
+
+RUN mkdir -p ./data/logs
+
+EXPOSE 3002
+
+# 使用 ts-node 直接运行，开发阶段无需编译
+CMD ["npx", "ts-node", "src/index.ts"]

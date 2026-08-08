@@ -1,0 +1,103 @@
+# ============================================
+# Trae Core 生产环境 Docker Compose
+# ============================================
+# 使用方式:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+# ============================================
+
+services:
+  core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: datapolit-core
+    ports:
+      - "${PORT:-3002}:${PORT:-3002}"
+    env_file:
+      - .env.production
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - app_data:/app/data
+      - app_logs:/app/data/logs
+    networks:
+      - datapolit-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${PORT:-3002}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  mysql:
+    image: mysql:8.0
+    container_name: datapolit-mysql
+    ports:
+      - "${DB_PORT:-3306}:${DB_PORT:-3306}"
+    env_file:
+      - .env.production
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - datapolit-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --max-connections=200
+      - --innodb-buffer-pool-size=256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mysql_data:
+    driver: local
+  app_data:
+    driver: local
+  app_logs:
+    driver: local
+
+networks:
+  datapolit-network:
+    driver: bridge

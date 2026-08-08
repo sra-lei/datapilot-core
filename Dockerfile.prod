@@ -20,8 +20,10 @@ RUN apk add --no-cache tzdata \
     && echo "Asia/Shanghai" > /etc/timezone
 
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
 COPY package*.json ./
+
+# 仅安装生产依赖，减小镜像体积
+RUN npm ci --omit=dev
 
 COPY .env.production ./.env
 

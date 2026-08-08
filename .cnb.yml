@@ -1,0 +1,10 @@
+main:
+  push:
+    - services:
+        - docker
+      stages:
+        # 同名镜像构建&推送
+        - name: Docker build
+          script: docker build -t docker.cnb.cool/sra_lei/datapolit-core:latest .
+        - name: Docker push
+          script: docker push docker.cnb.cool/sra_lei/datapolit-core:latest

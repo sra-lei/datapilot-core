@@ -2,16 +2,18 @@ services:
   core:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: datapolit-core
     ports:
       - "${PORT}:${PORT}"
     env_file:
-      - .env
+      - .env.development
     depends_on:
       mysql:
         condition: service_healthy
     volumes:
+      # 挂载源码，修改后重启容器即可生效
+      - ./src:/app/src
       - ./data:/app/data
       - ./logs:/app/data/logs
     networks:
@@ -24,10 +26,10 @@ services:
     ports:
       - "${DB_PORT}:${DB_PORT}"
     env_file:
-      - .env
+      - .env.development
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./database/init:/docker-entrypoint-initdb.d
+      - ./database/init:/docker-entrypoint-initdb.d:ro
     networks:
       - datapolit-network
     restart: unless-stopped
