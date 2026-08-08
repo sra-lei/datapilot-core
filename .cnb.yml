@@ -1,61 +1,19 @@
-main:
-  push:
-    - services:
-        - docker
-      stages:
-        # 同名镜像构建&推送
-        - name: Docker build
-          script: docker build -t docker.cnb.cool/sra_lei/datapolit-core:latest .
-        - name: Docker push
-          script: docker push docker.cnb.cool/sra_lei/datapolit-core:latest
-
 # =============================================
 # 部署流水线（由 tag_deploy.yml 中的按钮触发）
 # =============================================
 $:
-  # 开发环境部署
-  tag_deploy.development:
-    - services:
-        - docker
-      stages:
-        - name: 构建开发环境镜像
-          script: |
-            docker build -f Dockerfile.dev -t docker.cnb.cool/sra_lei/datapolit-core:${tag_name}-dev .
-        - name: 推送开发环境镜像
-          script: |
-            docker push docker.cnb.cool/sra_lei/datapolit-core:${tag_name}-dev
-
-  # 预发布环境部署
-  tag_deploy.staging:
-    - services:
-        - docker
-      stages:
-        - name: 构建预发布环境镜像
-          script: |
-            docker build -f Dockerfile.prod -t docker.cnb.cool/sra_lei/datapolit-core:${tag_name}-staging .
-            docker tag docker.cnb.cool/sra_lei/datapolit-core:${tag_name}-staging docker.cnb.cool/sra_lei/datapolit-core:staging-latest
-        - name: 推送预发布环境镜像
-          script: |
-            docker push docker.cnb.cool/sra_lei/datapolit-core:${tag_name}-staging
-            docker push docker.cnb.cool/sra_lei/datapolit-core:staging-latest
-
-  # 生产环境部署
   tag_deploy.production:
+    - imports:
+      - https://cnb.cool/sra_lei/datacolit-secret/-/blob/main/tencent-cloud.yml
     - services:
         - docker
       stages:
-        - name: 构建生产环境镜像
+        - name: 构建镜像
           script: |
-            docker build -f Dockerfile.prod -t docker.cnb.cool/sra_lei/datapolit-core:${tag_name} .
-            docker tag docker.cnb.cool/sra_lei/datapolit-core:${tag_name} docker.cnb.cool/sra_lei/datapolit-core:latest
-        - name: 推送生产环境镜像
-          script: |
-            docker push docker.cnb.cool/sra_lei/datapolit-core:${tag_name}
-            docker push docker.cnb.cool/sra_lei/datapolit-core:latest
+            docker build -f Dockerfile.prod -t ccr.ccs.tencentyun.com/sra.io/datapolit-core:${tag_name} .
+            docker tag ccr.ccs.tencentyun.com/sra.io/datapolit-core:${tag_name} ccr.ccs.tencentyun.com/sra.io/datapolit-core:latest
         - name: 推送到腾讯云 CCR
           script: |
-            docker login ccr.ccs.tencentyun.com -u ${TENCENTCLOUD_DOCKER_USERNAME} -p ${TENCENTCLOUD_DOCKER_PASSWORD}
-            docker tag docker.cnb.cool/sra_lei/datapolit-core:${tag_name} ccr.ccs.tencentyun.com/sra.io/datapolit-core:${tag_name}
-            docker tag docker.cnb.cool/sra_lei/datapolit-core:${tag_name} ccr.ccs.tencentyun.com/sra.io/datapolit-core:latest
+            docker login ccr.ccs.tencentyun.com -u ${TENCENTCLOUD_DOCKER_USERNAME} -p "${TENCENTCLOUD_DOCKER_PASSWORD}"
             docker push ccr.ccs.tencentyun.com/sra.io/datapolit-core:${tag_name}
             docker push ccr.ccs.tencentyun.com/sra.io/datapolit-core:latest
