@@ -1,6 +1,8 @@
 main:
   push:
-    - services:
+    - imports:
+        - https://cnb.cool/sra_lei/datacolit-secret/-/blob/main/ssh-deploy.yml
+      services:
         - docker
       stages:
         - name: 构建镜像
