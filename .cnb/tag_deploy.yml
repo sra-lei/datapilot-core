@@ -1,0 +1,24 @@
+environments:
+  - name: development
+    description: 开发环境
+    env:
+      name: development
+      tag_name: $CNB_BRANCH
+
+  - name: staging
+    description: 预发布环境
+    env:
+      name: staging
+      tag_name: $CNB_BRANCH
+
+  - name: production
+    description: 生产环境
+    env:
+      name: production
+      tag_name: $CNB_BRANCH
+    permissions:
+      roles:
+        - master
+        - owner
+    require:
+      - environmentName: staging
