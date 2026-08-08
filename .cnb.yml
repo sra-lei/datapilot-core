@@ -14,6 +14,7 @@ main:
           script: |
             mkdir -p ~/.ssh && echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
             ssh -o StrictHostKeyChecking=no ubuntu@${SERVER_IP} "
+              docker login docker.cnb.cool -u '$IMAGE_REPO_USERNAME' --password-stdin <<< '$IMAGE_REPO_PASSWORD'
               cd /opt/datapolit-core
               docker compose -f docker-compose.server.yml pull core
               docker compose -f docker-compose.server.yml up -d core
