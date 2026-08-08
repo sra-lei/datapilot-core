@@ -4,8 +4,8 @@
 $:
   tag_deploy.production:
     - imports:
-      - https://cnb.cool/sra_lei/datacolit-secret/-/blob/main/tencent-cloud.yml
-    - services:
+        - https://cnb.cool/sra_lei/datacolit-secret/-/blob/main/tencent-cloud.yml
+      services:
         - docker
       stages:
         - name: 构建镜像
