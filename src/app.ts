@@ -7,6 +7,7 @@ import express, { Application, Request, Response } from "express";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./constants/swaggerConfig";
 import databaseManagerRouter from "./modules/database-manager/router";
+import evalRouter from "./modules/eval/router";
 import permissionRouter from "./modules/permission/router";
 import userRouter from "./modules/user/router";
 import { envConfig, success } from "./utils";
@@ -34,6 +35,7 @@ if (envConfig.isDevelopment || envConfig.enableSwagger) {
 app.use("/core/user", userRouter);
 app.use("/core/database", databaseManagerRouter);
 app.use("/core/permission", permissionRouter);
+app.use("/core", evalRouter);
 
 // 基础路由
 app.get("/core/health", (_req: Request, res: Response) => {

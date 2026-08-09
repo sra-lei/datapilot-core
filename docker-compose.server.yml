@@ -21,6 +21,7 @@ services:
     volumes:
       - app_data:/app/data
       - app_logs:/app/data/logs
+      - datapolit-reports:/app/data/reports
     networks:
       - datapolit-shared
     restart: always
@@ -95,6 +96,8 @@ volumes:
     driver: local
   app_logs:
     driver: local
+  datapolit-reports:
+    external: true
 
 networks:
   datapolit-shared:
