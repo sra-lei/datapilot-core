@@ -88,9 +88,11 @@ INSERT IGNORE INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'user' AND p.name IN ('user:read', 'database:read');
 
--- 创建默认管理员账户（用户名: Sra, 密码: admin123）
-INSERT IGNORE INTO users (username, password, email, status) VALUES
-    ('Sra', 'admin123', 'admin@example.com', 'active');
+-- 创建/更新默认管理员账户（用户名: Sra, 密码: admin123）
+-- 已存在则更新关键字段，保证脚本可幂等重复执行
+INSERT INTO users (username, password, email, status) VALUES
+    ('Sra', 'admin123', 'admin@example.com', 'active')
+ON DUPLICATE KEY UPDATE password = VALUES(password);
 
 -- 为 Sra 分配 admin 角色
 INSERT IGNORE INTO user_roles (user_id, role_id)
