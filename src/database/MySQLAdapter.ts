@@ -3,8 +3,8 @@
  * 用于生产环境
  */
 
-import mysql, { Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import { IDatabaseAdapter, QueryResult, QueryRow } from './IDatabaseAdapter';
+import mysql, { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import { IDatabaseAdapter, QueryResult, QueryRow } from "./IDatabaseAdapter";
 
 export interface MySQLConfig {
   host: string;
@@ -24,6 +24,9 @@ export class MySQLAdapter implements IDatabaseAdapter {
 
   /**
    * 初始化数据库连接
+   * 编码安全：强制使用 utf8mb4（含 4-byte emoji/生僻字），
+   * 连接建立后立即 SET NAMES utf8mb4，杜绝因 MySQL 实例默认字符集为 latin1/gbk
+   * 导致的"中文存入时 UTF-8 bytes 被按 latin1 编码 → 再按 latin1 读出 → 前端显示 æ‰€æœ‰ 类乱码"。
    */
   async initialize(): Promise<void> {
     this.pool = mysql.createPool({
@@ -32,26 +35,30 @@ export class MySQLAdapter implements IDatabaseAdapter {
       user: this.config.user,
       password: this.config.password,
       database: this.config.database,
+      charset: "utf8mb4",
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
     });
 
-    // 测试连接
     const connection = await this.pool.getConnection();
-    connection.release();
+    try {
+      await connection.query("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+      await connection.query(
+        "SET SESSION character_set_client=utf8mb4, character_set_connection=utf8mb4, character_set_results=utf8mb4",
+      );
+    } finally {
+      connection.release();
+    }
   }
 
   /**
    * 执行查询
    */
   async query(sql: string, params?: unknown[]): Promise<QueryResult> {
-    if (!this.pool) throw new Error('Database not initialized');
+    if (!this.pool) throw new Error("Database not initialized");
 
-    const [rows] = await this.pool.query<RowDataPacket[]>(
-      sql,
-      params,
-    );
+    const [rows] = await this.pool.query<RowDataPacket[]>(sql, params);
 
     return { rows: rows as QueryRow[] };
   }
@@ -60,12 +67,9 @@ export class MySQLAdapter implements IDatabaseAdapter {
    * 执行插入
    */
   async insert(sql: string, params?: unknown[]): Promise<QueryResult> {
-    if (!this.pool) throw new Error('Database not initialized');
+    if (!this.pool) throw new Error("Database not initialized");
 
-    const [result] = await this.pool.query<ResultSetHeader>(
-      sql,
-      params,
-    );
+    const [result] = await this.pool.query<ResultSetHeader>(sql, params);
 
     return {
       insertId: result.insertId,
@@ -77,12 +81,9 @@ export class MySQLAdapter implements IDatabaseAdapter {
    * 执行更新
    */
   async update(sql: string, params?: unknown[]): Promise<QueryResult> {
-    if (!this.pool) throw new Error('Database not initialized');
+    if (!this.pool) throw new Error("Database not initialized");
 
-    const [result] = await this.pool.query<ResultSetHeader>(
-      sql,
-      params,
-    );
+    const [result] = await this.pool.query<ResultSetHeader>(sql, params);
 
     return { affectedRows: result.affectedRows };
   }
@@ -91,12 +92,9 @@ export class MySQLAdapter implements IDatabaseAdapter {
    * 执行删除
    */
   async delete(sql: string, params?: unknown[]): Promise<QueryResult> {
-    if (!this.pool) throw new Error('Database not initialized');
+    if (!this.pool) throw new Error("Database not initialized");
 
-    const [result] = await this.pool.query<ResultSetHeader>(
-      sql,
-      params,
-    );
+    const [result] = await this.pool.query<ResultSetHeader>(sql, params);
 
     return { affectedRows: result.affectedRows };
   }
@@ -105,7 +103,7 @@ export class MySQLAdapter implements IDatabaseAdapter {
    * 执行DDL语句（创建表等）
    */
   async run(sql: string): Promise<void> {
-    if (!this.pool) throw new Error('Database not initialized');
+    if (!this.pool) throw new Error("Database not initialized");
     await this.pool.query(sql);
   }
 
@@ -123,6 +121,6 @@ export class MySQLAdapter implements IDatabaseAdapter {
    * 获取适配器名称
    */
   getName(): string {
-    return 'MySQL';
+    return "MySQL";
   }
 }

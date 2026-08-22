@@ -40,17 +40,26 @@ export function getEnvNumber(key: string, defaultValue: number): number {
 export const envConfig = {
   // 环境
   nodeEnv: (process.env.NODE_ENV || 'development') as NodeEnv,
-  
+
   // 服务器
   port: parseInt(process.env.PORT || '3002', 10),
-  
+
   // Swagger
   enableSwagger: process.env.ENABLE_SWAGGER !== 'false',
-  
+
   // 数据库
   dbType: process.env.DB_TYPE || 'sqlite',
   sqlitePath: process.env.SQLITE_DB_PATH || './data/trae.db',
-  
+
+  // doc-kit（文档解析/入库微服务）：BFF 代理目标
+  docKitHost: getEnv('DOC_KIT_HOST', '127.0.0.1'),
+  docKitPort: getEnvNumber('DOC_KIT_PORT', 8100),
+  docKitUrl: getEnv(
+    'DOC_KIT_URL',
+    `http://${getEnv('DOC_KIT_HOST', '127.0.0.1')}:${getEnvNumber('DOC_KIT_PORT', 8100)}`,
+  ),
+  docKitTimeoutMs: getEnvNumber('DOC_KIT_TIMEOUT_MS', 5 * 60 * 1000),
+
   // 开发环境判断
   isDevelopment: process.env.NODE_ENV === 'development',
   isProduction: process.env.NODE_ENV === 'production',

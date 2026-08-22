@@ -4,6 +4,7 @@
 
 import { DatabaseFactory } from "../../database";
 import { logger } from "../../utils/logUtils";
+import { repairField } from "../../utils/textRepair";
 import {
   DEFAULT_PERMISSIONS,
   DEFAULT_ROLES,
@@ -30,6 +31,7 @@ export class PermissionService {
 
   /**
    * 初始化权限相关表
+   * 编码安全：新表强制 ENGINE=InnoDB + DEFAULT CHARSET=utf8mb4，避免继承 MySQL 实例默认字符集（latin1/gbk）。
    */
   async initializeTables(): Promise<void> {
     // 创建权限表
@@ -40,7 +42,7 @@ export class PermissionService {
         description TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
     // 创建角色表
@@ -51,7 +53,7 @@ export class PermissionService {
         description TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
     // 创建角色-权限关联表
@@ -62,7 +64,7 @@ export class PermissionService {
         PRIMARY KEY (role_id, permission_id),
         FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
         FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
-      )
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
     // 创建用户-角色关联表
@@ -73,7 +75,7 @@ export class PermissionService {
         PRIMARY KEY (user_id, role_id),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
-      )
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
     // 初始化默认权限和角色
@@ -194,7 +196,13 @@ export class PermissionService {
       );
       return {
         success: true,
-        data: (result.rows || []) as unknown as Permission[],
+        // 历史遗留：MySQL 实例默认字符集非 UTF-8 / 连接层未强制 utf8mb4 时，
+        // 初始插入的中文 description 会被"UTF-8 bytes → Latin-1 decode"错编码。
+        // 这里统一无损修复，旧库也能正确显示中文。
+        data: repairField(
+          (result.rows || []) as unknown as Permission[],
+          "description",
+        ),
       };
     } catch (error) {
       return {
@@ -293,7 +301,10 @@ export class PermissionService {
       const result = await this.db.query("SELECT * FROM roles ORDER BY name");
       return {
         success: true,
-        data: (result.rows || []) as unknown as Role[],
+        data: repairField(
+          (result.rows || []) as unknown as Role[],
+          "description",
+        ),
       };
     } catch (error) {
       return {
@@ -334,12 +345,20 @@ export class PermissionService {
         [roleId],
       );
 
+      const role = repairField(
+        [roleResult.rows[0] as unknown as Role],
+        "description",
+      )[0];
+      const permissions = repairField(
+        (permissionsResult.rows || []) as unknown as Permission[],
+        "description",
+      );
+
       return {
         success: true,
         data: {
-          ...(roleResult.rows[0] as unknown as Role),
-          permissions: (permissionsResult.rows ||
-            []) as unknown as Permission[],
+          ...role,
+          permissions,
         },
       };
     } catch (error) {

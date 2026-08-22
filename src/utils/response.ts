@@ -1,8 +1,14 @@
 /**
  * 统一响应格式工具
+ *
+ * 编码安全：所有出口在 send 之前显式 setHeader('Content-Type', 'application/json; charset=utf-8')
+ *   - 不依赖 Express res.json() 的自动行为（反向代理 / 压缩中间件 可能会剥离 charset）
+ *   - 前端 request.ts 同时也走"arrayBuffer 强制 UTF-8 解码"兜底，双保险避免中文 mojibake
  */
 
 import { Response } from 'express';
+
+const JSON_UTF8 = 'application/json; charset=utf-8';
 
 /**
  * 统一响应接口
@@ -31,6 +37,7 @@ export function success<T>(
     msg,
     data: data || undefined,
   };
+  res.setHeader('Content-Type', JSON_UTF8);
   return res.status(status).json(response);
 }
 
@@ -49,6 +56,7 @@ export function error(
     status,
     msg,
   };
+  res.setHeader('Content-Type', JSON_UTF8);
   return res.status(status).json(response);
 }
 
@@ -84,5 +92,6 @@ export function paginated<T>(
       pageSize,
     },
   };
+  res.setHeader('Content-Type', JSON_UTF8);
   return res.status(200).json(response);
 }
