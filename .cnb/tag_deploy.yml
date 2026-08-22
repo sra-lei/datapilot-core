@@ -1,6 +1,0 @@
-environments:
-  - name: production
-    description: 生产环境
-    env:
-      name: production
-      tag_name: $CNB_BRANCH
