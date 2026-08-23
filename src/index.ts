@@ -5,6 +5,7 @@
 import app from "./app";
 import { LOG_OPERATIONS, SYSTEM_MESSAGES } from "./constants";
 import { DatabaseFactory, getDatabaseConfigFromEnv } from "./database";
+import { ensureSchema } from "./database/ensureSchema";
 import { envConfig, loadEnv, logError, logSystem } from "./utils";
 
 // 加载环境变量
@@ -17,6 +18,12 @@ async function startServer(): Promise<void> {
   try {
     const config = getDatabaseConfigFromEnv();
     const db = await DatabaseFactory.initialize(config);
+
+    // 幂等建表与权限种子（已有数据库不会重跑 init.sql，启动时保证表结构就绪）
+    await ensureSchema(db);
+    logSystem("schema", "数据库表结构与权限种子已就绪", {
+      dbType: db.getName(),
+    });
 
     logSystem(
       LOG_OPERATIONS.SERVER_START,
