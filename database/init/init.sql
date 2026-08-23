@@ -5,7 +5,7 @@
 -- 引用说明：
 --   - services/core/docker-compose.yml / docker-compose.prod.yml / docker-compose.server.yml
 --     通过 ./database/init 挂载到 /docker-entrypoint-initdb.d
---   - deploy/docker-compose.deploy.yml 通过 ../services/core/database/init 复用本文件
+--   - deploy/docker-compose.yml 通过 ../services/core/database/init 复用本文件
 --
 -- 注意：docker-entrypoint-initdb.d 仅在 MySQL 数据卷首次创建时执行；
 --       已有数据库由服务启动时的 ensureSchema() 幂等补齐（内容与本文件保持一致）。
