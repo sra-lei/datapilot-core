@@ -15,12 +15,14 @@
 
 ### 1.2 现状问题
 
-评估集数据目前**硬编码散落在 3 处，互不同步**：
+> ⚠️ 更新说明：原评估集硬编码位于已废弃的 `services/chartermate`（2026-08 下线），现评估集由 core 统一管理。
+
+评估集数据原本**硬编码散落在多处，互不同步**（chartermate 已废弃后仅存历史参考）：
 
 | 位置 | 角色 |
 |---|---|
-| `services/chartermate/tests/test_chat.py` → `TEST_CASES` | 实际评测执行器（`python -m tests.test_chat`），逐题调用 chat API 打分，产出 `data/reports/test_report_*.json` |
-| `services/chartermate/scripts/upload_dataset.py` → `TEST_CASES` | 重复一份，用于上传 Langfuse dataset |
+| ~~`services/chartermate/tests/test_chat.py` → `TEST_CASES`~~ | ~~实际评测执行器（`python -m tests.test_chat`），逐题调用 chat API 打分，产出 `data/reports/test_report_*.json`~~ |
+| ~~`services/chartermate/scripts/upload_dataset.py` → `TEST_CASES`~~ | ~~重复一份，用于上传 Langfuse dataset~~ |
 | 需求方提供的示例数据 | 与上述两处内容一致（T001–T022） |
 
 评估报告链路：`test_report_*.json` 由外部拷入 `services/core/data/reports/` → core 现有 `eval` 模块读取并暴露 `GET /core/stats/eval` → 前端评估看板（RagDashboard）展示历史趋势与最新详情。
@@ -37,7 +39,7 @@
 
 1. **统一数据源**：评估集以结构化数据形式（MySQL）存储在 core 中，替代三处硬编码。
 2. **可管理**：支持评估集与用例的增、删、改、查；支持按示例格式**批量导入**、**整体导出**。
-3. **可消费**：导出接口输出与示例数据完全兼容的 JSON 格式，供评测脚本（test_chat.py / upload_dataset.py）及后续前端管理页消费。
+3. **可消费**：导出接口输出与示例数据完全兼容的 JSON 格式，供评测消费方（原 chartermate 的 test_chat.py / upload_dataset.py 已随其废弃，后续可由新评测端接入）及后续前端管理页消费。
 4. **不破坏现有链路**：现有 `GET /core/stats/eval`（评估报告展示）保持不动，评估集管理为增量能力。
 
 ---
@@ -131,7 +133,7 @@
 | 项 | 说明 |
 |---|---|
 | 前端管理页 | 评估集管理 UI（后续单独排期，接口已就绪） |
-| Python 侧改造 | `test_chat.py` / `upload_dataset.py` 改为调用 core 导出接口，消除硬编码（后续排期） |
+| 评测执行端接入 | 原 `test_chat.py` / `upload_dataset.py`（chartermate 已废弃）改为调用 core 导出接口，消除硬编码（后续排期） |
 | 报告关联分析 | 如"报告中出现评估集外 id"告警、按评估集统计得分等（后续迭代） |
 
 ---
