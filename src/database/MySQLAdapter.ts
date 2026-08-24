@@ -3,7 +3,12 @@
  * 用于生产环境
  */
 
-import mysql, { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import mysql, {
+  Pool,
+  PoolConnection,
+  ResultSetHeader,
+  RowDataPacket,
+} from "mysql2/promise";
 import { IDatabaseAdapter, QueryResult, QueryRow } from "./IDatabaseAdapter";
 
 export interface MySQLConfig {
@@ -17,6 +22,10 @@ export interface MySQLConfig {
 export class MySQLAdapter implements IDatabaseAdapter {
   private pool: Pool | null = null;
   private config: MySQLConfig;
+  /** 当前事务连接（withTransaction 期间非空；单例串行化保证同一时刻只有一个事务） */
+  private txConnection: PoolConnection | null = null;
+  /** 事务串行化队列：避免并发 withTransaction 复用同一事务连接导致数据串写 */
+  private txQueue: Promise<unknown> = Promise.resolve();
 
   constructor(config: MySQLConfig) {
     this.config = config;
@@ -52,13 +61,17 @@ export class MySQLAdapter implements IDatabaseAdapter {
     }
   }
 
+  /** 事务期间使用事务连接，否则使用连接池 */
+  private getTarget(): Pool | PoolConnection {
+    if (!this.pool) throw new Error("Database not initialized");
+    return this.txConnection ?? this.pool;
+  }
+
   /**
    * 执行查询
    */
   async query(sql: string, params?: unknown[]): Promise<QueryResult> {
-    if (!this.pool) throw new Error("Database not initialized");
-
-    const [rows] = await this.pool.query<RowDataPacket[]>(sql, params);
+    const [rows] = await this.getTarget().query<RowDataPacket[]>(sql, params);
 
     return { rows: rows as QueryRow[] };
   }
@@ -67,9 +80,7 @@ export class MySQLAdapter implements IDatabaseAdapter {
    * 执行插入
    */
   async insert(sql: string, params?: unknown[]): Promise<QueryResult> {
-    if (!this.pool) throw new Error("Database not initialized");
-
-    const [result] = await this.pool.query<ResultSetHeader>(sql, params);
+    const [result] = await this.getTarget().query<ResultSetHeader>(sql, params);
 
     return {
       insertId: result.insertId,
@@ -81,9 +92,7 @@ export class MySQLAdapter implements IDatabaseAdapter {
    * 执行更新
    */
   async update(sql: string, params?: unknown[]): Promise<QueryResult> {
-    if (!this.pool) throw new Error("Database not initialized");
-
-    const [result] = await this.pool.query<ResultSetHeader>(sql, params);
+    const [result] = await this.getTarget().query<ResultSetHeader>(sql, params);
 
     return { affectedRows: result.affectedRows };
   }
@@ -92,9 +101,7 @@ export class MySQLAdapter implements IDatabaseAdapter {
    * 执行删除
    */
   async delete(sql: string, params?: unknown[]): Promise<QueryResult> {
-    if (!this.pool) throw new Error("Database not initialized");
-
-    const [result] = await this.pool.query<ResultSetHeader>(sql, params);
+    const [result] = await this.getTarget().query<ResultSetHeader>(sql, params);
 
     return { affectedRows: result.affectedRows };
   }
@@ -103,8 +110,45 @@ export class MySQLAdapter implements IDatabaseAdapter {
    * 执行DDL语句（创建表等）
    */
   async run(sql: string): Promise<void> {
-    if (!this.pool) throw new Error("Database not initialized");
-    await this.pool.query(sql);
+    await this.getTarget().query(sql);
+  }
+
+  /**
+   * 在事务中执行回调：begin → fn → commit；异常则 rollback 并上抛。
+   * 通过串行化队列保证同一时刻只有一个活跃事务（单例适配器 + 低并发管理台场景足够）。
+   * 注意：回调内不要再嵌套调用 withTransaction（会等待队列形成死锁），
+   * 需要嵌套请直接复用入参 db 执行 SQL。
+   */
+  withTransaction<T>(fn: (db: IDatabaseAdapter) => Promise<T>): Promise<T> {
+    const run = async (): Promise<T> => {
+      if (!this.pool) throw new Error("Database not initialized");
+      const connection = await this.pool.getConnection();
+      this.txConnection = connection;
+      try {
+        await connection.beginTransaction();
+        const result = await fn(this);
+        await connection.commit();
+        return result;
+      } catch (err) {
+        try {
+          await connection.rollback();
+        } catch {
+          // 回滚失败（如连接已断）时保留原始错误
+        }
+        throw err;
+      } finally {
+        this.txConnection = null;
+        connection.release();
+      }
+    };
+
+    // 串行化：前一个事务（成功或失败）结束后才启动下一个
+    const next = this.txQueue.then(run, run);
+    this.txQueue = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
   }
 
   /**

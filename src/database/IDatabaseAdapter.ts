@@ -60,6 +60,12 @@ export interface IDatabaseAdapter {
   run(sql: string): Promise<void>;
 
   /**
+   * 在事务中执行回调；回调内的所有操作原子提交或整体回滚。
+   * @param fn 事务回调（入参为当前事务绑定的适配器，回调内应使用该实例执行 SQL）
+   */
+  withTransaction<T>(fn: (db: IDatabaseAdapter) => Promise<T>): Promise<T>;
+
+  /**
    * 关闭数据库连接
    */
   close(): Promise<void>;

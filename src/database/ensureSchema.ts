@@ -70,6 +70,52 @@ export async function ensureSchema(db: IDatabaseAdapter): Promise<void> {
   await db.run('UPDATE eval_sets SET status = \'normal\' WHERE status = \'active\'');
   await db.run('UPDATE eval_cases SET status = \'normal\' WHERE status = \'active\'');
 
+  // 评估运行结果（评估集运行入库后的唯一数据源；set_id 可空，ON DELETE SET NULL 保证软删评估集不丢历史）
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS eval_runs (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        set_id INT NULL,
+        set_name VARCHAR(255) NULL,
+        doc_scope VARCHAR(255) NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'completed',
+        timestamp VARCHAR(32) NULL,
+        total INT NOT NULL DEFAULT 0,
+        passed INT NOT NULL DEFAULT 0,
+        avg_score DOUBLE NOT NULL DEFAULT 0,
+        avg_elapsed DOUBLE NOT NULL DEFAULT 0,
+        pass_rate VARCHAR(20) NULL,
+        category_stats JSON NULL,
+        failed_cases JSON NULL,
+        raw_report JSON NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_run_set (set_id),
+        INDEX idx_run_created (created_at),
+        CONSTRAINT fk_run_set FOREIGN KEY (set_id) REFERENCES eval_sets(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // 评估运行-用例明细（运行快照，不关联 eval_cases：用例后续编辑/软删不影响历史运行）
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS eval_run_cases (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        run_id INT NOT NULL,
+        case_id VARCHAR(64) NOT NULL,
+        question TEXT NOT NULL,
+        score DOUBLE NULL,
+        elapsed DOUBLE NULL,
+        keywords_found JSON NULL,
+        keyword_count INT NOT NULL DEFAULT 0,
+        source_count INT NOT NULL DEFAULT 0,
+        has_answer TINYINT(1) NOT NULL DEFAULT 0,
+        chapter_match TINYINT(1) NULL,
+        answer_preview TEXT NULL,
+        error TEXT NULL,
+        UNIQUE KEY uk_run_case (run_id, case_id),
+        FOREIGN KEY (run_id) REFERENCES eval_runs(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
   // 评估集权限种子（与 init.sql 保持一致）
   await db.run(`
     INSERT IGNORE INTO permissions (name, description) VALUES

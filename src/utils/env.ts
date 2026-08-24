@@ -60,6 +60,15 @@ export const envConfig = {
   ),
   docKitTimeoutMs: getEnvNumber('DOC_KIT_TIMEOUT_MS', 5 * 60 * 1000),
 
+  // docs-seeker（RAG 问答服务）：评估集在线运行目标（POST /v1/chat）
+  docsSeekerHost: getEnv('DOCS_SEEKER_HOST', '127.0.0.1'),
+  docsSeekerPort: getEnvNumber('DOCS_SEEKER_PORT', 8001),
+  docsSeekerUrl: getEnv(
+    'DOCS_SEEKER_URL',
+    `http://${getEnv('DOCS_SEEKER_HOST', '127.0.0.1')}:${getEnvNumber('DOCS_SEEKER_PORT', 8001)}`,
+  ),
+  docsSeekerTimeoutMs: getEnvNumber('DOCS_SEEKER_TIMEOUT_MS', 60 * 1000),
+
   // 开发环境判断
   isDevelopment: process.env.NODE_ENV === 'development',
   isProduction: process.env.NODE_ENV === 'production',
