@@ -19,5 +19,5 @@ RUN mkdir -p ./data/logs
 
 EXPOSE 3002
 
-# 使用 ts-node 直接运行，开发阶段无需编译
-CMD ["npx", "ts-node", "src/index.ts"]
+# ts-node-dev --respawn：监听 src/ 下整张 import 依赖图，改代码自动重启（开发热重载）
+CMD ["npx", "ts-node-dev", "--respawn", "src/index.ts"]

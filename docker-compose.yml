@@ -8,6 +8,9 @@ services:
       - "${PORT}:${PORT}"
     env_file:
       - .env.development
+    environment:
+      # Docker Desktop bind mount 下 chokidar 收不到 inotify 事件，强制轮询才能热重载
+      CHOKIDAR_USEPOLLING: "true"
     depends_on:
       mysql:
         condition: service_healthy
