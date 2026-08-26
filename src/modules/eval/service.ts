@@ -464,7 +464,7 @@ export class EvalService {
       const resp = await fetch(`${envConfig.docsSeekerUrl}/v1/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, use_cache: true }),
+        body: JSON.stringify({ question, use_cache: true, stream: false }),
         signal: controller.signal,
       });
       if (!resp.ok) {
