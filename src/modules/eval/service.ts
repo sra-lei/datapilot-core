@@ -307,7 +307,7 @@ export class EvalService {
       };
     }
 
-    const results: Array<{
+    type EvalCaseRun = {
       id: string;
       question: string;
       category: string;
@@ -320,9 +320,15 @@ export class EvalService {
       chapter_match?: boolean | null;
       answer_preview?: string;
       error?: string;
-    }> = [];
+    };
 
-    for (const c of cases) {
+    // 预分配结果数组：按用例下标落位，并发完成后汇总顺序与用例一致
+    const results: EvalCaseRun[] = new Array(cases.length);
+    let cursor = 0;
+
+    // 单条用例：调 docs-seeker /v1/chat + 评分（口径与 test_chat.py 一致）
+    const runCase = async(idx: number) => {
+      const c = cases[idx];
       const start = Date.now();
       try {
         const { answer, sources } = await this.chatQuestion(c.question);
@@ -339,7 +345,7 @@ export class EvalService {
         const has_answer = Boolean(answer);
         if (!has_answer) score = 0;
 
-        results.push({
+        results[idx] = {
           id: c.case_id,
           question: c.question,
           category: c.category,
@@ -351,20 +357,33 @@ export class EvalService {
           has_answer,
           chapter_match,
           answer_preview: answer.slice(0, 100) + (answer.length > 100 ? '...' : ''),
-        });
+        };
       } catch (error) {
         const elapsed = (Date.now() - start) / 1000;
         logger.error('评估用例执行失败', { error, caseId: c.case_id });
-        results.push({
+        results[idx] = {
           id: c.case_id,
           question: c.question,
           category: c.category,
           score: 0,
           elapsed,
           error: (error as Error).message,
-        });
+        };
       }
-    }
+    };
+
+    // 有界并发：cursor 在同步代码段自增取下标（无 await 间隙），不会重复领取；
+    // 单条用例失败已在上层 try/catch 隔离，不影响整体
+    const concurrency = Math.max(1, Math.min(envConfig.evalConcurrency, cases.length));
+    await Promise.all(
+      Array.from({ length: concurrency }, async() => {
+        for (;;) {
+          const idx = cursor++;
+          if (idx >= cases.length) break;
+          await runCase(idx);
+        }
+      }),
+    );
 
     // ---- 汇总统计（口径与 test_chat.py 一致）----
     const total = results.length;

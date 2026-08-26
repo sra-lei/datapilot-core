@@ -69,6 +69,9 @@ export const envConfig = {
   ),
   docsSeekerTimeoutMs: getEnvNumber('DOCS_SEEKER_TIMEOUT_MS', 60 * 1000),
 
+  // 评估集在线运行并发度：同时调 docs-seeker /v1/chat 的请求数上限（有界并发，避免打爆 LLM 网关）
+  evalConcurrency: getEnvNumber('EVAL_CONCURRENCY', 4),
+
   // 开发环境判断
   isDevelopment: process.env.NODE_ENV === 'development',
   isProduction: process.env.NODE_ENV === 'production',

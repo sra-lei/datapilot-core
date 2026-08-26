@@ -105,29 +105,26 @@ router.post("/eval/runs/batch", requirePermission("eval:write"), (req, res) =>
 
 /**
  * @swagger
- * /core/eval/runs/run:
+ * /core/eval/sets/{id}/runs:
  *   post:
- *     summary: 在线运行评估集（指定 set_id，评测后结果入库）
+ *     summary: 在线运行评估集（评测后结果入库）
  *     description: 取评估集 normal 用例，逐条调 docs-seeker /v1/chat 评测（与 test_chat.py 同口径评分），汇总后写入 eval_runs
  *     tags: [评估报告]
  *     security:
  *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [set_id]
- *             properties:
- *               set_id: { type: number, description: 评估集 id }
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: number }
+ *         description: 评估集 id
  *     responses:
  *       200:
  *         description: 运行完成（data 为运行摘要，含 run_id）
  *       400:
- *         description: set_id 无效或评估集无可运行用例
+ *         description: 评估集 id 无效或评估集无可运行用例
  */
-router.post("/eval/runs/run", requirePermission("eval:write"), (req, res) =>
+router.post('/eval/sets/:id/runs', requirePermission('eval:write'), (req, res) =>
   evalController.runSet(req, res),
 );
 

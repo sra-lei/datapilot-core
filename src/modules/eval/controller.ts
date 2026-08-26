@@ -53,12 +53,12 @@ export class EvalController {
 
   /**
    * 在线运行评估集（指定评估集，评测后结果入库）
-   * POST /core/eval/runs/run
+   * POST /core/eval/sets/:id/runs
    */
   async runSet(req: Request, res: Response): Promise<void> {
-    const set_id = Number((req.body ?? {}).set_id);
+    const set_id = Number(req.params.id);
     if (!Number.isFinite(set_id) || set_id <= 0) {
-      error(res, 400, "set_id 不能为空");
+      error(res, 400, '评估集 ID 无效');
       return;
     }
 

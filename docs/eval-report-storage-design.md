@@ -296,6 +296,7 @@ CREATE TABLE IF NOT EXISTS eval_run_cases (
 
 | 版本 | 日期 | 变更内容 |
 |---|---|---|
+| v1.4 | - | 接口命名规范：在线运行评估集由 `POST /core/eval/runs/run`（body 传 set_id）迁移为 **`POST /core/eval/sets/:id/runs`**（set_id 入路径，与 `sets/:id/cases` 子资源风格一致）；评估集在线运行改为有界并发（`EVAL_CONCURRENCY`，默认 4）逐条调 docs-seeker /v1/chat |
 | v1.3 | - | 新增**在线运行评估集**：POST /core/eval/runs/run（set_id，eval:write）——core 取集内 normal 用例逐条调 docs-seeker /v1/chat 评测（移植 test_chat.py 评分口径），汇总后经 createRun 入库；评估历史页增加「运行评估集」入口（选择评估集 → 运行 → 结果摘要 + 列表刷新）；运行历史菜单图标改为 HistoryOutlined |
 | v1.2 | - | 实施完成：建表（eval_runs/eval_run_cases）+ withTransaction + 导入/批量/历史 CRUD 接口落地；/core/stats/eval 改查库并移除文件回退；管理台拆分为 RAG 看板（含导入入口）/ 运行历史两页（系统状态内容合并进仪表盘 RAG 使用统计卡，页面下线）；存量 12 份报告已入库（12 运行 / 264 明细）并删除原文件 |
 | v1.1 | - | 按评审调整：写入路径改为**管理台导入**（不改造 test_chat.py、不为其提供接口）；存量文件导入核对后直接删除不保留；chartermate 由人工移除，不在实施范围 |
