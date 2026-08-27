@@ -6,6 +6,7 @@ import app from "./app";
 import { LOG_OPERATIONS, SYSTEM_MESSAGES } from "./constants";
 import { DatabaseFactory, getDatabaseConfigFromEnv } from "./database";
 import { ensureSchema } from "./database/ensureSchema";
+import { taskWorker } from "./modules/task";
 import { envConfig, loadEnv, logError, logSystem } from "./utils";
 
 // 加载环境变量
@@ -22,6 +23,12 @@ async function startServer(): Promise<void> {
     // 幂等建表与权限种子（已有数据库不会重跑 init.sql，启动时保证表结构就绪）
     await ensureSchema(db);
     logSystem("schema", "数据库表结构与权限种子已就绪", {
+      dbType: db.getName(),
+    });
+
+    // 任务引擎启动：重启恢复（queued/running → failed）+ 保留策略定时清理
+    taskWorker.init();
+    logSystem("task-worker", "任务引擎已启动（进程内串行队列）", {
       dbType: db.getName(),
     });
 

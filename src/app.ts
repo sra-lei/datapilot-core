@@ -10,6 +10,7 @@ import databaseManagerRouter from "./modules/database-manager/router";
 import evalRouter from "./modules/eval/router";
 import evalSetRouter from "./modules/eval-set/router";
 import permissionRouter from "./modules/permission/router";
+import taskRouter from "./modules/task/router";
 import userRouter from "./modules/user/router";
 import { requirePermission } from "./middleware/permission";
 import { envConfig, success } from "./utils";
@@ -79,6 +80,7 @@ app.use("/core/database", databaseManagerRouter);
 app.use("/core/permission", permissionRouter);
 app.use("/core", evalRouter);
 app.use("/core/eval", evalSetRouter);
+app.use("/core/tasks", taskRouter);
 
 // 基础路由
 app.get("/core/health", (_req: Request, res: Response) => {

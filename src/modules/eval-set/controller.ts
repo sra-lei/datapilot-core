@@ -6,6 +6,7 @@ import { Request, Response } from 'express';
 import { ErrorCode } from '../../constants';
 import { generateTraceId, logUserOperation, logWarn } from '../../utils';
 import { error, success } from '../../utils/response';
+import { taskService } from '../task/service';
 import { EVAL_MESSAGES } from './constants';
 import { evalSetService } from './service';
 import { EvalCaseInput, EvalSetImportParams } from './types';
@@ -14,6 +15,15 @@ import { EvalCaseInput, EvalSetImportParams } from './types';
 function parseIdParam(raw: string | string[]): number {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return parseInt(value, 10);
+}
+
+/** 解析请求头 x-user-id（登录用户 id，可空） */
+function parseUserId(req: Request): number | null {
+  const raw = req.headers['x-user-id'];
+  if (Array.isArray(raw)) return raw.length > 0 ? parseInt(raw[0], 10) : null;
+  if (!raw) return null;
+  const parsed = parseInt(String(raw), 10);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export class EvalSetController {
@@ -293,8 +303,9 @@ export class EvalSetController {
   }
 
   /**
-   * 从已入库文档生成评估集
-   * POST /core/eval/sets/generate
+   * 从已入库文档生成评估集（任务化）
+   * POST /core/eval/sets/generate → 提交 eval_set_generate 任务，返回 {task_id}
+   * 原同步行为不再保留（P3）；进度/结果通过任务中心 GET /core/tasks/:id 轮询。
    */
   async generateSetFromDocument(req: Request, res: Response): Promise<void> {
     const traceId = generateTraceId();
@@ -309,14 +320,20 @@ export class EvalSetController {
       return;
     }
 
-    const result = await evalSetService.generateSetFromDocument(body.doc_id.trim(), {
-      set_name:
-        typeof body.set_name === 'string' && body.set_name.trim()
-          ? body.set_name.trim()
-          : undefined,
-      count: Number.isFinite(Number(body.count)) ? Number(body.count) : undefined,
+    const userId = parseUserId(req);
+    const result = await taskService.createTask({
+      task_type: 'eval_set_generate',
+      payload: {
+        doc_id: body.doc_id.trim(),
+        set_name:
+          typeof body.set_name === 'string' && body.set_name.trim()
+            ? body.set_name.trim()
+            : undefined,
+        count: Number.isFinite(Number(body.count)) ? Number(body.count) : undefined,
+      },
+      created_by: userId,
     });
-    if (!result.success) {
+    if (!result.success || !result.data) {
       logWarn('EVAL_SET_GENERATE', result.error!.message, {
         traceId,
         docId: body.doc_id,
@@ -324,13 +341,12 @@ export class EvalSetController {
       error(res, result.error!.code, result.error!.message);
       return;
     }
-    logUserOperation('EVAL_SET_GENERATE', '评估集生成成功', {
+    logUserOperation('EVAL_SET_GENERATE', '评估集生成任务已提交', {
       traceId,
-      setId: result.data!.set.id,
-      name: result.data!.set.name,
-      case_count: result.data!.import_result.inserted,
+      taskId: result.data.task_id,
+      docId: body.doc_id,
     });
-    success(res, result.data, '评估集生成成功');
+    success(res, result.data, '评估集生成任务已提交');
   }
 }
 

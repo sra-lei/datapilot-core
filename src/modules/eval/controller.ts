@@ -3,8 +3,18 @@
  */
 
 import { Request, Response } from "express";
+import { taskService } from "../task/service";
 import { evalService } from "./service";
 import { paginated, success, error } from "../../utils/response";
+
+/** 解析请求头 x-user-id（登录用户 id，可空） */
+function parseUserId(req: Request): number | null {
+  const raw = req.headers["x-user-id"];
+  if (Array.isArray(raw)) return raw.length > 0 ? parseInt(raw[0], 10) : null;
+  if (!raw) return null;
+  const parsed = parseInt(String(raw), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 export class EvalController {
   /**
@@ -52,8 +62,9 @@ export class EvalController {
   }
 
   /**
-   * 在线运行评估集（指定评估集，评测后结果入库）
-   * POST /core/eval/sets/:id/runs
+   * 在线运行评估集（任务化）
+   * POST /core/eval/sets/:id/runs → 提交 eval_run 任务，返回 {task_id}
+   * 原同步行为不再保留（P3）；进度/结果通过任务中心 GET /core/tasks/:id 轮询。
    */
   async runSet(req: Request, res: Response): Promise<void> {
     const set_id = Number(req.params.id);
@@ -62,9 +73,14 @@ export class EvalController {
       return;
     }
 
-    const result = await evalService.runSet(set_id);
+    const userId = parseUserId(req);
+    const result = await taskService.createTask({
+      task_type: 'eval_run',
+      payload: { set_id },
+      created_by: userId,
+    });
     if (result.success) {
-      success(res, result.data, "评估运行完成");
+      success(res, result.data, '评估任务已提交');
     } else {
       error(res, result.error!.code, result.error!.message);
     }

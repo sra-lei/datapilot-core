@@ -93,6 +93,22 @@ function mapCaseRow(row: QueryRow): EvalRunCaseRow {
   };
 }
 
+/** 在线运行单条用例的中间结果形态（任务中心进度镜像与汇总用） */
+export type EvalCaseRun = {
+  id: string;
+  question: string;
+  category: string;
+  score?: number;
+  elapsed?: number;
+  keywords_found?: string[];
+  keyword_count?: number;
+  source_count?: number;
+  has_answer?: boolean;
+  chapter_match?: boolean | null;
+  answer_preview?: string;
+  error?: string;
+};
+
 export class EvalService {
   /**
    * 获取评估集历史趋势与最新详情
@@ -292,8 +308,47 @@ export class EvalService {
   /**
    * 在线运行评估集：取集内 normal 用例 → 逐条调 docs-seeker /v1/chat 评测（移植 test_chat.py 评分逻辑）
    * → 汇总报告 → 复用 createRun 入库，返回运行摘要。
+   * 任务中心（task worker）走 runSetCases + createRun，支持逐用例进度回调与取消检查。
    */
   async runSet(setId: number): Promise<ServiceResult<EvalRunSetResult>> {
+    const executed = await this.runSetCases(setId);
+    if (!executed.success || !executed.data) {
+      return { success: false, error: executed.error };
+    }
+    const { report, summary } = executed.data;
+
+    const created = await this.createRun(report);
+    if (!created.success || !created.data) {
+      return { success: false, error: created.error };
+    }
+
+    return { success: true, data: { run_id: created.data.run_id, ...summary } };
+  }
+
+  /**
+   * 执行评估集逐用例评测（不落库）：取集内 normal 用例 → 逐条调 docs-seeker /v1/chat 评分
+   * → 汇总报告。供任务中心 worker 使用：逐用例回调进度、每用例边界检查取消标志。
+   */
+  async runSetCases(
+    setId: number,
+    handlers?: {
+      /** 每完成一个用例回调：done/total/当前用例与得分/通过数（score >= 0.8） */
+      onCaseDone?: (info: {
+        done: number;
+        total: number;
+        current: { case_id: string; score?: number };
+        passed: number;
+      }) => void;
+      /** 返回 true 时停止领取新用例（取消语义；已完成用例保留在 progress_detail） */
+      shouldStop?: () => boolean | Promise<boolean>;
+    },
+  ): Promise<
+    ServiceResult<{
+      results: EvalCaseRun[];
+      report: EvalReportInput;
+      summary: Omit<EvalRunSetResult, 'run_id'>;
+    }>
+  > {
     const detail = await evalSetService.getSetDetail(setId);
     if (!detail.success || !detail.data) {
       return { success: false, error: detail.error };
@@ -306,21 +361,6 @@ export class EvalService {
         error: { code: ErrorCode.BAD_REQUEST, message: EVAL_RUN_MESSAGES.NO_RUNNABLE_CASES },
       };
     }
-
-    type EvalCaseRun = {
-      id: string;
-      question: string;
-      category: string;
-      score?: number;
-      elapsed?: number;
-      keywords_found?: string[];
-      keyword_count?: number;
-      source_count?: number;
-      has_answer?: boolean;
-      chapter_match?: boolean | null;
-      answer_preview?: string;
-      error?: string;
-    };
 
     // 预分配结果数组：按用例下标落位，并发完成后汇总顺序与用例一致
     const results: EvalCaseRun[] = new Array(cases.length);
@@ -370,6 +410,16 @@ export class EvalService {
           error: (error as Error).message,
         };
       }
+      // 每完成一个用例回调进度（供任务中心镜像）
+      handlers?.onCaseDone?.({
+        done: results.filter((r) => r !== undefined).length,
+        total: cases.length,
+        current: {
+          case_id: results[idx]?.id ?? c.case_id,
+          score: results[idx]?.score,
+        },
+        passed: results.filter((r) => r !== undefined && (r.score ?? 0) >= 0.8).length,
+      });
     };
 
     // 有界并发：cursor 在同步代码段自增取下标（无 await 间隙），不会重复领取；
@@ -378,6 +428,8 @@ export class EvalService {
     await Promise.all(
       Array.from({ length: concurrency }, async() => {
         for (;;) {
+          // 取消标志位：每个用例领取边界检查（P7：取消后不再领取新用例）
+          if (await handlers?.shouldStop?.()) break;
           const idx = cursor++;
           if (idx >= cases.length) break;
           await runCase(idx);
@@ -386,13 +438,16 @@ export class EvalService {
     );
 
     // ---- 汇总统计（口径与 test_chat.py 一致）----
-    const total = results.length;
+    const total = results.filter((r) => r !== undefined).length;
     const passed = results.filter((r) => (r.score ?? 0) >= 0.8).length;
-    const avgScore = results.reduce((s, r) => s + (r.score ?? 0), 0) / total;
-    const avgElapsed = results.reduce((s, r) => s + (r.elapsed ?? 0), 0) / total;
+    const avgScore =
+      total > 0 ? results.reduce((s, r) => s + (r?.score ?? 0), 0) / total : 0;
+    const avgElapsed =
+      total > 0 ? results.reduce((s, r) => s + (r?.elapsed ?? 0), 0) / total : 0;
 
     const categoryStats: Record<string, { count: number; avg_score: number }> = {};
     for (const r of results) {
+      if (!r) continue;
       const cat = r.category || '未分类';
       if (!categoryStats[cat]) categoryStats[cat] = { count: 0, avg_score: 0 };
       categoryStats[cat].count += 1;
@@ -403,11 +458,11 @@ export class EvalService {
     }
 
     const failedCases = results
-      .filter((r) => !r.error && (r.score ?? 0) < 0.5)
+      .filter((r) => r && !r.error && (r.score ?? 0) < 0.5)
       .map((r) => ({
-        id: r.id,
-        question: (r.question ?? '').slice(0, 30) + '...',
-        score: r.score ?? 0,
+        id: r!.id,
+        question: (r!.question ?? '').slice(0, 30) + '...',
+        score: r!.score ?? 0,
       }));
 
     const report: EvalReportInput = {
@@ -428,31 +483,31 @@ export class EvalService {
         category_stats: categoryStats,
         failed_cases: failedCases,
       },
-      results: results as EvalReportResultItem[],
+      results: results.filter((r): r is EvalCaseRun => r !== undefined) as EvalReportResultItem[],
     };
-
-    const created = await this.createRun(report);
-    if (!created.success || !created.data) {
-      return { success: false, error: created.error };
-    }
 
     return {
       success: true,
       data: {
-        run_id: created.data.run_id,
-        set_id: setId,
-        set_name: detail.data.set.name,
-        total,
-        passed,
-        avg_score: avgScore,
-        avg_elapsed: avgElapsed,
-        failed_count: failedCases.length,
+        results: results.filter((r): r is EvalCaseRun => r !== undefined),
+        report,
+        summary: {
+          set_id: setId,
+          set_name: detail.data.set.name,
+          total,
+          passed,
+          avg_score: avgScore,
+          avg_elapsed: avgElapsed,
+          failed_count: failedCases.length,
+        },
       },
     };
   }
 
   /**
    * 调 docs-seeker /v1/chat（普通 JSON POST），返回回答文本与引用来源
+   * 注意：评估必须关闭语义缓存（use_cache: false），否则命中缓存会掩盖真实检索/生成问题，
+   * 无法测出 RAG 链路的真实水平。
    */
   private async chatQuestion(question: string): Promise<{
     answer: string;
@@ -464,7 +519,7 @@ export class EvalService {
       const resp = await fetch(`${envConfig.docsSeekerUrl}/v1/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, use_cache: true, stream: false }),
+        body: JSON.stringify({ question, use_cache: false, stream: false }),
         signal: controller.signal,
       });
       if (!resp.ok) {

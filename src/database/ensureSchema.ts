@@ -142,4 +142,26 @@ export async function ensureSchema(db: IDatabaseAdapter): Promise<void> {
     SELECT r.id, p.id FROM roles r, permissions p
     WHERE r.name = 'admin' AND p.name IN ('doc:ingest')
   `);
+
+  // 任务中心（长耗时操作异步化：eval_set_generate 从文档生成评估集 / eval_run 运行评估集）
+  // 任务 = 执行过程；成果落在 eval_sets / eval_runs，result 仅存关联 id 与摘要
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS tasks (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        task_type VARCHAR(50) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'queued',
+        payload JSON NULL,
+        progress INT NOT NULL DEFAULT 0,
+        progress_detail JSON NULL,
+        result JSON NULL,
+        error TEXT NULL,
+        created_by INT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        finished_at DATETIME NULL,
+        INDEX idx_tasks_type (task_type),
+        INDEX idx_tasks_status (status),
+        INDEX idx_tasks_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 }
