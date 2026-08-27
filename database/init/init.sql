@@ -169,6 +169,10 @@ INSERT IGNORE INTO permissions (name, description) VALUES
     ('eval:read', '查看评估集'),
     ('eval:write', '管理评估集');
 
+-- 文档入库权限（与评估域分离：入库 / 评估两拨人）
+INSERT IGNORE INTO permissions (name, description) VALUES
+    ('doc:ingest', '文档入库');
+
 -- 插入默认角色（admin / user / developer，与 DEFAULT_ROLES 对齐）
 INSERT IGNORE INTO roles (name, description) VALUES
     ('admin', '系统管理员，拥有所有权限'),

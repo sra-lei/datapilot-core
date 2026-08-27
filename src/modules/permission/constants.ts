@@ -52,6 +52,9 @@ export const DEFAULT_PERMISSIONS = [
 
   // 系统管理权限
   { name: 'system:settings', description: '系统设置' },
+
+  // 文档入库权限（入库人员；评估集生成属于 eval 域，走 eval:write）
+  { name: 'doc:ingest', description: '文档入库' },
 ] as const;
 
 export const DEFAULT_ROLES = [

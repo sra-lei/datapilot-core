@@ -11,6 +11,7 @@ import evalRouter from "./modules/eval/router";
 import evalSetRouter from "./modules/eval-set/router";
 import permissionRouter from "./modules/permission/router";
 import userRouter from "./modules/user/router";
+import { requirePermission } from "./middleware/permission";
 import { envConfig, success } from "./utils";
 import { createDocKitProxy, pingDocKitHealth } from "./utils/docKitProxy";
 import { logSystem } from "./utils/logUtils";
@@ -42,6 +43,7 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 // doc-kit 代理：放在其他业务路由之前，避免前缀误匹配。
 // 透传前端上传的二进制 body（multipart/form-data，含 boundary），
 // 保证大文件/异步 ingest 正常提交。
+// 权限：上传入库（POST /doc-kit/*/ingest）需要 doc:ingest（入库人员）；健康/状态/文档库查询保持开放。
 const docKitProxyMiddleware = createDocKitProxy({
   target: envConfig.docKitUrl,
   timeoutMs: envConfig.docKitTimeoutMs,
@@ -49,6 +51,10 @@ const docKitProxyMiddleware = createDocKitProxy({
 app.use(
   "/doc-kit",
   (req: Request, res: Response, next: NextFunction) => {
+    // 仅对入库写操作做权限校验（入库 / 评估两拨人权限分离）
+    if (req.method === "POST" && req.path.includes("/ingest")) {
+      return requirePermission("doc:ingest")(req, res, next);
+    }
     // 对 application/json 之外的大 body 请求直接跳过 express.json 缓存逻辑，
     // 实际 body 仍由代理中间件流式 pipe，这里交给它处理。
     docKitProxyMiddleware(req, res, next);

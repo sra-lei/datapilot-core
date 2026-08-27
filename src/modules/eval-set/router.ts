@@ -92,6 +92,36 @@ router.post('/sets/import', requirePermission('eval:write'), (req, res) =>
 
 /**
  * @swagger
+ * /core/eval/sets/generate:
+ *   post:
+ *     summary: 从已入库文档生成评估集（doc_id 为 doc-kit 入库任务 id）
+ *     description: 转发 doc-kit eval/generate（读取保存的解析段落 + LLM 生成 QA）→ 编号校验 → 一步建集导用例
+ *     tags: [评估集管理]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [doc_id]
+ *             properties:
+ *               doc_id: { type: string, description: 已入库文档 task_id（GET /doc-kit/api/v1/documents） }
+ *               set_name: { type: string, description: 评估集名称（可选，缺省自动命名） }
+ *               count: { type: number, description: 生成条数（可选，默认 15） }
+ *     responses:
+ *       200:
+ *         description: 生成成功（含评估集与导入结果）
+ *       400:
+ *         description: doc_id 无效或未生成有效用例
+ */
+router.post('/sets/generate', requirePermission('eval:write'), (req, res) =>
+  evalSetController.generateSetFromDocument(req, res),
+);
+
+/**
+ * @swagger
  * /core/eval/sets/{id}:
  *   get:
  *     summary: 评估集详情（含全部用例）

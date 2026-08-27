@@ -5,7 +5,7 @@
 
 import { ErrorCode } from '../../constants';
 import { DatabaseFactory, QueryRow } from '../../database';
-import { logger } from '../../utils';
+import { envConfig, logger } from '../../utils';
 import {
   EVAL_CATEGORIES,
   EVAL_MESSAGES,
@@ -649,6 +649,100 @@ export class EvalSetService {
       success: true,
       data: { set: created.data, import_result: imported.data },
     };
+  }
+
+  /**
+   * 从已入库文档生成评估集
+   * 转发 doc-kit eval/generate（读取保存的解析段落 + LLM 生成）→ 编号/校验 → 一步建集导用例。
+   * 权限：eval:write（评估域）；doc:ingest 仅约束"上传入库"，与本接口解耦。
+   */
+  async generateSetFromDocument(
+    docId: string,
+    params: { set_name?: string; count?: number } = {},
+  ): Promise<ServiceResult<EvalSetImportData & { generate_failures: unknown[] }>> {
+    try {
+      const gen = await this.callDocKit<{
+        filename?: string;
+        mode?: string;
+        cases?: Array<{
+          question: string;
+          expected_keywords: string[];
+          expected_chapter?: string | null;
+          category: string;
+        }>;
+        failures?: unknown[];
+      }>('/doc-kit/api/v1/eval/generate', { task_id: docId, count: params.count });
+
+      const rawCases = gen.cases ?? [];
+      if (rawCases.length === 0) {
+        return {
+          success: false,
+          error: {
+            code: ErrorCode.BAD_REQUEST,
+            message: '未能生成有效用例（生成失败或全部未通过校验）',
+          },
+        };
+      }
+
+      // 编号 T001…T0N，保持集内唯一；字段沿用导入校验语义
+      const cases: EvalCaseInput[] = rawCases.map((c, i) => ({
+        id: `T${String(i + 1).padStart(3, '0')}`,
+        question: c.question,
+        expected_keywords: c.expected_keywords ?? [],
+        expected_chapter: c.expected_chapter ?? null,
+        category: c.category,
+      }));
+
+      const d = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const stamp = `${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}`;
+      const name = params.set_name?.trim() || `自动-${gen.filename || docId}-${stamp}`;
+
+      const imported = await this.importSet({
+        name,
+        doc_scope: gen.filename || docId,
+        cases,
+      });
+      if (!imported.success || !imported.data) {
+        return { success: false, error: imported.error };
+      }
+
+      return {
+        success: true,
+        data: { ...imported.data, generate_failures: gen.failures ?? [] },
+      };
+    } catch (error) {
+      logger.error('生成评估集失败', { error, docId });
+      return {
+        success: false,
+        error: {
+          code: ErrorCode.INTERNAL_ERROR,
+          message: `生成评估集失败: ${(error as Error).message}`,
+        },
+      };
+    }
+  }
+
+  /** doc-kit 服务间 JSON 调用（fetch；生成可能耗时，超时 5 分钟） */
+  private async callDocKit<T>(path: string, body?: unknown): Promise<T> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+    try {
+      const resp = await fetch(`${envConfig.docKitUrl}${path}`, {
+        method: body === undefined ? 'GET' : 'POST',
+        headers:
+          body === undefined ? undefined : { 'Content-Type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: controller.signal,
+      });
+      const data = (await resp.json()) as { status?: number; msg?: string; data?: T };
+      if (!resp.ok || data.status !== 200) {
+        throw new Error(data.msg || `doc-kit 返回 ${resp.status}`);
+      }
+      return data.data as T;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }
 

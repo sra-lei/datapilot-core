@@ -291,6 +291,47 @@ export class EvalSetController {
     });
     success(res, result.data, EVAL_MESSAGES.IMPORT_SUCCESS);
   }
+
+  /**
+   * 从已入库文档生成评估集
+   * POST /core/eval/sets/generate
+   */
+  async generateSetFromDocument(req: Request, res: Response): Promise<void> {
+    const traceId = generateTraceId();
+    const body = (req.body || {}) as {
+      doc_id?: unknown;
+      set_name?: unknown;
+      count?: unknown;
+    };
+
+    if (typeof body.doc_id !== 'string' || body.doc_id.trim() === '') {
+      error(res, ErrorCode.BAD_REQUEST, 'doc_id 不能为空');
+      return;
+    }
+
+    const result = await evalSetService.generateSetFromDocument(body.doc_id.trim(), {
+      set_name:
+        typeof body.set_name === 'string' && body.set_name.trim()
+          ? body.set_name.trim()
+          : undefined,
+      count: Number.isFinite(Number(body.count)) ? Number(body.count) : undefined,
+    });
+    if (!result.success) {
+      logWarn('EVAL_SET_GENERATE', result.error!.message, {
+        traceId,
+        docId: body.doc_id,
+      });
+      error(res, result.error!.code, result.error!.message);
+      return;
+    }
+    logUserOperation('EVAL_SET_GENERATE', '评估集生成成功', {
+      traceId,
+      setId: result.data!.set.id,
+      name: result.data!.set.name,
+      case_count: result.data!.import_result.inserted,
+    });
+    success(res, result.data, '评估集生成成功');
+  }
 }
 
 export const evalSetController = new EvalSetController();

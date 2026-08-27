@@ -129,4 +129,17 @@ export async function ensureSchema(db: IDatabaseAdapter): Promise<void> {
     SELECT r.id, p.id FROM roles r, permissions p
     WHERE r.name = 'admin' AND p.name IN ('eval:read', 'eval:write')
   `);
+
+  // 文档入库权限种子（入库 / 评估权限分离）
+  await db.run(`
+    INSERT IGNORE INTO permissions (name, description) VALUES
+        ('doc:ingest', '文档入库')
+  `);
+
+  // admin 角色自动获得文档入库权限
+  await db.run(`
+    INSERT IGNORE INTO role_permissions (role_id, permission_id)
+    SELECT r.id, p.id FROM roles r, permissions p
+    WHERE r.name = 'admin' AND p.name IN ('doc:ingest')
+  `);
 }
