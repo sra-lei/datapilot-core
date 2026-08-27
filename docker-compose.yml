@@ -11,6 +11,11 @@ services:
     environment:
       # Docker Desktop bind mount 下 chokidar 收不到 inotify 事件，强制轮询才能热重载
       CHOKIDAR_USEPOLLING: "true"
+      # 统一走 datapolit-shared 共享网络，按容器名互访（覆盖 .env.development 的宿主机地址，
+      # 不影响宿主机直跑 ts-node 时使用 127.0.0.1 的配置）
+      DB_HOST: datapolit-mysql
+      DOC_KIT_URL: http://datapolit-dockit:8100
+      DOCS_SEEKER_URL: http://datapolit-docs-seeker:8001
     depends_on:
       mysql:
         condition: service_healthy
@@ -20,7 +25,7 @@ services:
       - ./data:/app/data
       - ./logs:/app/data/logs
     networks:
-      - datapolit-network
+      - datapolit-shared
     restart: unless-stopped
 
   mysql:
@@ -34,7 +39,7 @@ services:
       - mysql_data:/var/lib/mysql
       - ./database/init:/docker-entrypoint-initdb.d:ro
     networks:
-      - datapolit-network
+      - datapolit-shared
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -45,5 +50,5 @@ volumes:
   mysql_data:
 
 networks:
-  datapolit-network:
-    driver: bridge
+  datapolit-shared:
+    external: true
