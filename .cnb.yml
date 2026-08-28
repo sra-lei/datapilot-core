@@ -16,6 +16,6 @@ main:
             ssh -o StrictHostKeyChecking=no ubuntu@${SERVER_IP} "
               docker login docker.cnb.cool -u '$IMAGE_REPO_USERNAME' --password-stdin <<< '$IMAGE_REPO_PASSWORD'
               cd /opt/datapolit-core
-              docker compose -f docker-compose.server.yml pull core
-              docker compose -f docker-compose.server.yml up -d core
+              docker compose -f docker-compose.prod.yml pull core
+              docker compose -f docker-compose.prod.yml up -d core
             "
